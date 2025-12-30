@@ -1,16 +1,16 @@
 {
   "device": "hidraw7",
   "openrgb_devices": {
-    "3": {
-      "name": "Candy companion (Powerplay)",
-      "mode": "breathing",
+    "2": {
+      "name": "LG 27GN950 Monitor Sphere",
+      "mode": "static",
       "color": "8000ff",
       "brightness": 100,
       "speed": 50
     },
-    "4": {
-      "name": "G502 LIGHTSPEED Mouse",
-      "mode": "breathing",
+    "3": {
+      "name": "Candy companion (Powerplay)",
+      "mode": "static",
       "color": "8000ff",
       "brightness": 100,
       "speed": 50
@@ -29,13 +29,8 @@
     "active_resolution": 4,
     "report_rate": 1000,
     "led": {
-      "mode": "breathing",
-      "color": [128, 0, 255],
-      "brightness": 100
-    },
-    "sphere_light": {
       "mode": "static",
-      "color": "8000ff",
+      "color": [128, 0, 255],
       "brightness": 100
     },
     "buttons": {
@@ -48,8 +43,8 @@
       "6": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_T", "action": "click"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
       "7": {"type": "macro", "keys": [{"key": "KEY_LEFTMETA", "action": "press"}, {"key": "KEY_Q", "action": "click"}, {"key": "KEY_LEFTMETA", "action": "release"}]},
       "8": {"type": "button", "button": 7},
-      "9": {"type": "button", "button": 8},
-      "10": {"type": "macro", "keys": [{"key": "KEY_A", "action": "click"}]}
+      "9": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_LEFTMETA", "action": "press"}, {"key": "KEY_RIGHT", "action": "click"}, {"key": "KEY_LEFTMETA", "action": "release"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+      "10": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_LEFTMETA", "action": "press"}, {"key": "KEY_LEFT", "action": "click"}, {"key": "KEY_LEFTMETA", "action": "release"}, {"key": "KEY_LEFTCTRL", "action": "release"}]}
     }
   },
   "profiles": {
@@ -58,15 +53,13 @@
       "buttons": {
         "0": {"type": "button", "button": 1},
         "1": {"type": "button", "button": 2},
-        "2": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_W", "action": "click"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+        "2": {"type": "macro", "keys": [{"key": "KEY_LEFTMETA", "action": "press"}, {"key": "KEY_Q", "action": "click"}, {"key": "KEY_LEFTMETA", "action": "release"}]},
         "3": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_X", "action": "click"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
         "4": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_C", "action": "click"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
         "5": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_V", "action": "click"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
         "6": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_T", "action": "click"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
-        "7": {"type": "macro", "keys": [{"key": "KEY_LEFTMETA", "action": "press"}, {"key": "KEY_Q", "action": "click"}, {"key": "KEY_LEFTMETA", "action": "release"}]},
-        "8": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_D", "action": "click"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
-        "9": {"type": "macro", "keys": [{"key": "KEY_LEFTALT", "action": "press"}, {"key": "KEY_RIGHT", "action": "click"}, {"key": "KEY_LEFTALT", "action": "release"}]},
-        "10": {"type": "macro", "keys": [{"key": "KEY_LEFTALT", "action": "press"}, {"key": "KEY_LEFT", "action": "click"}, {"key": "KEY_LEFTALT", "action": "release"}]}
+        "7": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_W", "action": "click"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+        "8": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_D", "action": "click"}, {"key": "KEY_LEFTCTRL", "action": "release"}]}
       }
     },
     "code": {
@@ -93,15 +86,13 @@
       "buttons": {
         "0": {"type": "button", "button": 1},
         "1": {"type": "button", "button": 2},
-        "2": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_LEFTSHIFT", "action": "press"}, {"key": "KEY_W", "action": "click"}, {"key": "KEY_LEFTSHIFT", "action": "release"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+        "2": {"type": "macro", "keys": [{"key": "KEY_LEFTMETA", "action": "press"}, {"key": "KEY_Q", "action": "click"}, {"key": "KEY_LEFTMETA", "action": "release"}]},
         "3": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_LEFTSHIFT", "action": "press"}, {"key": "KEY_X", "action": "click"}, {"key": "KEY_LEFTSHIFT", "action": "release"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
         "4": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_LEFTSHIFT", "action": "press"}, {"key": "KEY_C", "action": "click"}, {"key": "KEY_LEFTSHIFT", "action": "release"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
         "5": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_LEFTSHIFT", "action": "press"}, {"key": "KEY_V", "action": "click"}, {"key": "KEY_LEFTSHIFT", "action": "release"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
         "6": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_LEFTSHIFT", "action": "press"}, {"key": "KEY_T", "action": "click"}, {"key": "KEY_LEFTSHIFT", "action": "release"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
-        "7": {"type": "macro", "keys": [{"key": "KEY_LEFTMETA", "action": "press"}, {"key": "KEY_Q", "action": "click"}, {"key": "KEY_LEFTMETA", "action": "release"}]},
-        "8": {"type": "macro", "keys": [{"key": "KEY_Y", "action": "click"}]},
-        "9": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_LEFTSHIFT", "action": "press"}, {"key": "KEY_RIGHT", "action": "click"}, {"key": "KEY_LEFTSHIFT", "action": "release"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
-        "10": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_LEFTSHIFT", "action": "press"}, {"key": "KEY_LEFT", "action": "click"}, {"key": "KEY_LEFTSHIFT", "action": "release"}, {"key": "KEY_LEFTCTRL", "action": "release"}]}
+        "7": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_LEFTSHIFT", "action": "press"}, {"key": "KEY_W", "action": "click"}, {"key": "KEY_LEFTSHIFT", "action": "release"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+        "8": {"type": "macro", "keys": [{"key": "KEY_Y", "action": "click"}]}
       }
     },
     "gimp": {

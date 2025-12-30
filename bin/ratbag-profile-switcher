@@ -5,9 +5,6 @@ import time
 import sys
 from pathlib import Path
 
-# Add sphere lighting library path
-sys.path.insert(0, '/tmp/lg-controller')
-import lib27gn950 as lg
 import hid
 
 CONFIG_FILE = Path.home() / ".config" / "ratbag-profiles.json"
@@ -15,7 +12,6 @@ LOG_FILE = Path.home() / ".local/share" / "ratbag-profile-switcher.log"
 STATE_FILE = Path.home() / ".cache" / "ratbag-profile-switcher-state"
 
 # Global state for sphere lighting to prevent flickering
-_last_sphere_color = None
 
 def find_ratbag_mouse_device():
     """Auto-detect G502 by model name with profile count fallback"""
@@ -243,37 +239,6 @@ def set_mouse_led(ratbag_name, db_device, mode='breathing', color='8000ff', brig
         log(f"Error setting mouse LED: {e}")
         return False
 
-def set_sphere_lighting(color_hex, mode='static', brightness=100):
-    """Set LG monitor sphere lighting color. color_hex is 6-char hex string like '00ff00'"""
-    global _last_sphere_color
-
-    state_key = f"{color_hex}_{mode}_{brightness}"
-    # Skip if nothing changed (prevents flickering from repeated profile applications)
-    if _last_sphere_color == state_key:
-        return True
-
-    try:
-        # Convert hex color to RGB
-        r = int(color_hex[0:2], 16)
-        g = int(color_hex[2:4], 16)
-        b = int(color_hex[4:6], 16)
-
-        # Mode mapping: static=0x01, breathing=0x02, cycle=0x03, off=0x00
-        mode_map = {'static': 0x01, 'breathing': 0x02, 'cycle': 0x03, 'off': 0x00}
-        mode_byte = mode_map.get(mode, 0x01)
-
-        # Open LG monitor HID device
-        d = hid.Device(vid=0x043e, pid=0x9a8a)
-        cmd = bytes([0x57, 0xbb, 0x00, mode_byte, brightness, r, g, b] + [0x00]*56)
-        d.write(cmd)
-        d.close()
-
-        _last_sphere_color = state_key
-        log(f"Set sphere lighting to {mode} mode, color {color_hex}, brightness {brightness}")
-        return True
-    except Exception as e:
-        log(f"Error setting sphere lighting: {e}")
-        return False
 
 def switch_hardware_profile(ratbag_device, profile_num):
     try:
@@ -463,7 +428,7 @@ def configure_buttons(ratbag_device, profile, button_config):
         log(f"Error configuring buttons: {e}")
         return False
 
-def apply_profile(settings, db_device, hidraw_device, ratbag_name, default_ladder, default_led_color, default_hardware_profile, default_buttons, ensure_profile_0=False):
+def apply_profile(settings, db_device, hidraw_device, ratbag_name, default_ladder, default_led_color, default_hardware_profile, default_buttons, default_led_mode='breathing', default_led_brightness=100, ensure_profile_0=False):
     # Always use profile 0 - OVERWRITE mode, don't switch profiles
     hardware_profile = 0
     dpi_ladder = settings.get('dpi_ladder', default_ladder)
@@ -472,13 +437,13 @@ def apply_profile(settings, db_device, hidraw_device, ratbag_name, default_ladde
     # Support both old and new LED config formats
     led_settings = settings.get('led', {})
     if led_settings:
-        led_mode = led_settings.get('mode', 'breathing')
-        led_brightness = led_settings.get('brightness', 255)
+        led_mode = led_settings.get('mode', default_led_mode)
+        led_brightness = led_settings.get('brightness', default_led_brightness)
         led_color = led_settings.get('color', default_led_color)
     else:
-        # Fallback to old format
-        led_mode = settings.get('led_mode', 'breathing')
-        led_brightness = settings.get('led_brightness', 255)
+        # Fallback to old format or defaults
+        led_mode = settings.get('led_mode', default_led_mode)
+        led_brightness = settings.get('led_brightness', default_led_brightness)
         led_color = settings.get('led_color', default_led_color)
     buttons = settings.get('buttons', default_buttons)
 
@@ -498,30 +463,23 @@ def apply_profile(settings, db_device, hidraw_device, ratbag_name, default_ladde
 
     success = configure_dpi_ladder(hidraw_device, hardware_profile, dpi_ladder, active_resolution) and success
 
-    # Set mouse LED via OpenRGB (using device index 4)
-    if led_settings:
-        color_hex = "{:02x}{:02x}{:02x}".format(led_color[0], led_color[1], led_color[2])
-        set_openrgb_device("4", led_mode, color_hex, led_brightness)
-        log(f"Set mouse LED to {led_mode} mode, RGB({led_color[0]},{led_color[1]},{led_color[2]})")
-
-    # Set sphere lighting if configured (support both old and new formats)
-    sphere_settings = settings.get('sphere_light', {})
-    if sphere_settings:
-        sphere_color = sphere_settings.get('color')
-        sphere_mode = sphere_settings.get('mode', 'static')
-        sphere_brightness = sphere_settings.get('brightness', 100)
-        if sphere_color:
-            set_sphere_lighting(sphere_color, sphere_mode, sphere_brightness)
-    else:
-        # Fallback to old format
-        sphere_color = settings.get('sphere_light_color')
-        if sphere_color:
-            set_sphere_lighting(sphere_color, 'static', 100)
-
     # Configure buttons if specified
     if buttons:
         success = configure_buttons(ratbag_name, hardware_profile, buttons) and success
         success = commit_changes(db_device) and success
+
+    # Set mouse LED via OpenRGB AFTER ratbag commit (commit resets LED to ratbag's state)
+    # Always set LED - use profile settings if available, otherwise use defaults
+    led_speed = led_settings.get('speed', 50) if led_settings else 50
+    color_hex = "{:02x}{:02x}{:02x}".format(led_color[0], led_color[1], led_color[2])
+    log(f"About to set mouse LED: device=4, mode={led_mode}, color={color_hex}, brightness={led_brightness}, speed={led_speed}")
+    result = set_openrgb_device("4", led_mode, color_hex, led_brightness, led_speed)
+    log(f"Mouse LED command result: {result}")
+
+    # Apply all OpenRGB devices (monitor sphere, powerplay, fans) to ensure consistent state
+    config = load_config()
+    if config:
+        apply_openrgb_devices(config)
 
     return success
 
@@ -636,13 +594,17 @@ def monitor_windows():
     default_led_settings = default_config.get('led', {})
     if default_led_settings:
         default_led_color = default_led_settings.get('color', [255, 0, 0])
+        default_led_mode = default_led_settings.get('mode', 'static')
+        default_led_brightness = default_led_settings.get('brightness', 100)
     else:
         default_led_color = default_config.get('led_color', [255, 0, 0])
+        default_led_mode = default_config.get('led_mode', 'static')
+        default_led_brightness = default_config.get('led_brightness', 100)
     default_hardware_profile = default_config.get('hardware_profile', 0)
     default_buttons = default_config.get('buttons', {})
 
     log("Applying default profile on startup")
-    apply_profile(default_config, db_device, hidraw_device, ratbag_name, default_ladder, default_led_color, default_hardware_profile, default_buttons, ensure_profile_0=True)
+    apply_profile(default_config, db_device, hidraw_device, ratbag_name, default_ladder, default_led_color, default_hardware_profile, default_buttons, default_led_mode, default_led_brightness, ensure_profile_0=True)
 
     # Apply OpenRGB devices on startup (mouse, powerplay, fans)
     log("Applying OpenRGB device settings")
@@ -695,7 +657,7 @@ def monitor_windows():
                                 last_re_detect = current_time
                                 # Re-apply current profile to ensure consistency
                                 current_settings = config.get("profiles", {}).get(current_profile, config.get("default", {}))
-                                apply_profile(current_settings, db_device, hidraw_device, ratbag_name, default_ladder, default_led_color, default_hardware_profile, default_buttons)
+                                apply_profile(current_settings, db_device, hidraw_device, ratbag_name, default_ladder, default_led_color, default_hardware_profile, default_buttons, default_led_mode, default_led_brightness)
                             else:
                                 log("Re-detection failed")
                                 continue  # Skip profile change attempt
@@ -705,7 +667,7 @@ def monitor_windows():
                     active_dpi = dpi_ladder[active_res] if active_res < len(dpi_ladder) else dpi_ladder[-1]
                     profile_hw = profile.get('hardware_profile', default_hardware_profile)
                     log(f"Applying profile settings: {profile_name} (DPI: {active_dpi})")
-                    if apply_profile(profile, db_device, hidraw_device, ratbag_name, default_ladder, default_led_color, default_hardware_profile, default_buttons):
+                    if apply_profile(profile, db_device, hidraw_device, ratbag_name, default_ladder, default_led_color, default_hardware_profile, default_buttons, default_led_mode, default_led_brightness):
                         current_profile = profile_name
                         last_profile_change = current_time
                         STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
