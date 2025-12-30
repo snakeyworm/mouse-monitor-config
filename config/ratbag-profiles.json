@@ -6,7 +6,7 @@
     "active_resolution": 4,
     "report_rate": 1000,
     "led_mode": "breathing",
-    "led_color": [255, 0, 0],
+    "led_color": [128, 0, 255],
     "led_brightness": 255,
     "sphere_light_color": "8000ff",
     "buttons": {

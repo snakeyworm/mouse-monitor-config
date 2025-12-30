@@ -565,8 +565,8 @@ def monitor_windows():
     log("Applying default profile on startup")
     apply_profile(default_config, db_device, hidraw_device, ratbag_name, default_ladder, default_led_color, default_hardware_profile, default_buttons, ensure_profile_0=True)
 
-    set_powerplay_led(mode="breathing", color="ff0000")
-    log("Set Powerplay LED to breathing red")
+    set_powerplay_led(mode="breathing", color="8000ff")
+    log("Set Powerplay LED to breathing purple")
 
     current_profile = "default"
     last_check = 0
