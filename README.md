@@ -1,6 +1,6 @@
 # Mouse & Monitor Configuration
 
-Auto-switching mouse profiles and monitor sphere lighting based on active application.
+Auto-switching mouse profiles, monitor sphere lighting, and RGB peripherals based on active application.
 
 ## Components
 
@@ -12,6 +12,10 @@ Auto-switching mouse profiles and monitor sphere lighting based on active applic
 ### Monitor Control (LG 27GN950)
 - **sphere-light**: RGB sphere lighting controller
 - **monitor-ctl**: DDC/CI monitor controls (brightness, contrast, RGB, input switching)
+
+### RGB Peripherals (OpenRGB)
+- **OpenRGB integration**: Controls fans, RAM, and other RGB devices
+- Supports all OpenRGB-compatible devices (motherboard RGB headers, RAM, etc.)
 
 ## Installation
 
@@ -30,10 +34,12 @@ systemctl --user enable --now ratbag-profile-switcher.service
 
 ## Features
 
-- **Auto profile switching**: Detects active window (Brave, Kitty, Overwatch, etc.) and switches mouse buttons + sphere lighting
-- **Custom RGB**: Full RGB control for both mouse LED and monitor sphere lighting per profile
+- **Auto profile switching**: Detects active window (Brave, Kitty, Overwatch, etc.) and switches mouse buttons + lighting
+- **Unified lighting control**: Mouse LED, Powerplay LED, monitor sphere lighting, and OpenRGB devices
+- **Advanced lighting modes**: Supports static, breathing, cycle modes with brightness and speed control
 - **Fast switching**: <2 seconds for 11 button reconfiguration using batched commits
-- **Flicker prevention**: Caches sphere lighting state to avoid redundant updates
+- **Flicker prevention**: Caches lighting state to avoid redundant updates
+- **Flexible config format**: Supports both simple color strings and full lighting objects (mode, brightness, speed)
 
 ## Profile Colors
 
@@ -45,4 +51,42 @@ systemctl --user enable --now ratbag-profile-switcher.service
 - python3-hid
 - hidapi
 - ddcutil (for monitor control)
+- openrgb (for RGB peripheral control)
 - hyprctl (for window detection on Hyprland)
+
+## Configuration Format
+
+The config file `~/.config/ratbag-profiles.json` supports:
+
+### Lighting Objects (New Format)
+```json
+{
+  "led": {
+    "mode": "breathing",
+    "color": [128, 0, 255],
+    "brightness": 255
+  },
+  "sphere_light": {
+    "mode": "static",
+    "color": "8000ff",
+    "brightness": 100
+  },
+  "openrgb_devices": {
+    "ASRock B650 PG Lightning": {
+      "mode": "static",
+      "color": "8000ff",
+      "brightness": 100,
+      "speed": 50
+    }
+  }
+}
+```
+
+### Legacy Format (Still Supported)
+```json
+{
+  "led_mode": "breathing",
+  "led_color": [128, 0, 255],
+  "sphere_light_color": "8000ff"
+}
+```

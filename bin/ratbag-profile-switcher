@@ -196,30 +196,56 @@ def set_led(ratbag_device, profile, led_index, mode, color=None, brightness=None
         log(f"Error setting LED: {e}")
         return False
 
-def set_sphere_lighting(color_hex):
+def set_openrgb_device(device_name, mode='static', color='ffffff', brightness=100, speed=50):
+    """Set OpenRGB device lighting"""
+    try:
+        cmd = ['openrgb', '--device', device_name, '--mode', mode, '--color', color]
+
+        if brightness is not None:
+            cmd.extend(['--brightness', str(brightness)])
+
+        if speed is not None:
+            cmd.extend(['--speed', str(speed)])
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+
+        if result.returncode == 0:
+            log(f"Set OpenRGB device '{device_name}' to {mode} mode, color {color}")
+            return True
+        else:
+            log(f"OpenRGB error for {device_name}: {result.stderr}")
+            return False
+    except Exception as e:
+        log(f"Error setting OpenRGB device {device_name}: {e}")
+        return False
+
+def set_sphere_lighting(color_hex, mode='static', brightness=100):
     """Set LG monitor sphere lighting color. color_hex is 6-char hex string like '00ff00'"""
     global _last_sphere_color
 
-    # Skip if color hasn't changed (prevents flickering from repeated profile applications)
-    if _last_sphere_color == color_hex:
+    state_key = f"{color_hex}_{mode}_{brightness}"
+    # Skip if nothing changed (prevents flickering from repeated profile applications)
+    if _last_sphere_color == state_key:
         return True
 
     try:
-        monitors = lg.find_monitors()
-        if not monitors:
-            log("No LG monitors found for sphere lighting")
-            return False
+        # Convert hex color to RGB
+        r = int(color_hex[0:2], 16)
+        g = int(color_hex[2:4], 16)
+        b = int(color_hex[4:6], 16)
 
-        with hid.Device(path=monitors[0]['path']) as dev:
-            # Set color slot 1 to the specified color
-            cmd = lg.get_set_color_command(1, color_hex)
-            lg.send_command(cmd, dev)
+        # Mode mapping: static=0x01, breathing=0x02, cycle=0x03, off=0x00
+        mode_map = {'static': 0x01, 'breathing': 0x02, 'cycle': 0x03, 'off': 0x00}
+        mode_byte = mode_map.get(mode, 0x01)
 
-            # Activate color slot 1
-            lg.send_command(lg.control_commands['color1'], dev)
+        # Open LG monitor HID device
+        d = hid.Device(vid=0x043e, pid=0x9a8a)
+        cmd = bytes([0x57, 0xbb, 0x00, mode_byte, brightness, r, g, b] + [0x00]*56)
+        d.write(cmd)
+        d.close()
 
-        _last_sphere_color = color_hex
-        log(f"Set sphere lighting to {color_hex}")
+        _last_sphere_color = state_key
+        log(f"Set sphere lighting to {mode} mode, color {color_hex}, brightness {brightness}")
         return True
     except Exception as e:
         log(f"Error setting sphere lighting: {e}")
@@ -415,9 +441,17 @@ def apply_profile(settings, db_device, hidraw_device, ratbag_name, default_ladde
     dpi_ladder = settings.get('dpi_ladder', default_ladder)
     active_resolution = settings.get('active_resolution', 4)
     report_rate = settings.get('report_rate')
-    led_mode = settings.get('led_mode', 'breathing')
-    led_brightness = settings.get('led_brightness', 255)
-    led_color = settings.get('led_color', default_led_color)
+    # Support both old and new LED config formats
+    led_settings = settings.get('led', {})
+    if led_settings:
+        led_mode = led_settings.get('mode', 'breathing')
+        led_brightness = led_settings.get('brightness', 255)
+        led_color = led_settings.get('color', default_led_color)
+    else:
+        # Fallback to old format
+        led_mode = settings.get('led_mode', 'breathing')
+        led_brightness = settings.get('led_brightness', 255)
+        led_color = settings.get('led_color', default_led_color)
     buttons = settings.get('buttons', default_buttons)
 
     # On startup or when explicitly requested, switch to profile 0
@@ -449,10 +483,19 @@ def apply_profile(settings, db_device, hidraw_device, ratbag_name, default_ladde
     # Skip PowerPlay LED update during profile switches for speed
     # set_powerplay_led(mode="breathing", color="ff0000")
 
-    # Set sphere lighting if configured
-    sphere_color = settings.get('sphere_light_color')
-    if sphere_color:
-        set_sphere_lighting(sphere_color)
+    # Set sphere lighting if configured (support both old and new formats)
+    sphere_settings = settings.get('sphere_light', {})
+    if sphere_settings:
+        sphere_color = sphere_settings.get('color')
+        sphere_mode = sphere_settings.get('mode', 'static')
+        sphere_brightness = sphere_settings.get('brightness', 100)
+        if sphere_color:
+            set_sphere_lighting(sphere_color, sphere_mode, sphere_brightness)
+    else:
+        # Fallback to old format
+        sphere_color = settings.get('sphere_light_color')
+        if sphere_color:
+            set_sphere_lighting(sphere_color, 'static', 100)
 
     # Configure buttons if specified
     if buttons:
@@ -460,6 +503,16 @@ def apply_profile(settings, db_device, hidraw_device, ratbag_name, default_ladde
         success = commit_changes(db_device) and success
 
     return success
+
+def apply_openrgb_devices(config):
+    """Apply OpenRGB device settings from config"""
+    openrgb_devices = config.get('openrgb_devices', {})
+    for device_name, device_settings in openrgb_devices.items():
+        mode = device_settings.get('mode', 'static')
+        color = device_settings.get('color', 'ffffff')
+        brightness = device_settings.get('brightness', 100)
+        speed = device_settings.get('speed', 50)
+        set_openrgb_device(device_name, mode, color, brightness, speed)
 
 def get_active_window_class():
     try:
@@ -558,7 +611,12 @@ def monitor_windows():
 
     default_config = config.get("default", {})
     default_ladder = default_config.get('dpi_ladder', [400, 800, 1600, 3200, 6400])
-    default_led_color = default_config.get('led_color', [255, 0, 0])
+    # Support both new and old LED format for default
+    default_led_settings = default_config.get('led', {})
+    if default_led_settings:
+        default_led_color = default_led_settings.get('color', [255, 0, 0])
+    else:
+        default_led_color = default_config.get('led_color', [255, 0, 0])
     default_hardware_profile = default_config.get('hardware_profile', 0)
     default_buttons = default_config.get('buttons', {})
 
@@ -567,6 +625,10 @@ def monitor_windows():
 
     set_powerplay_led(mode="breathing", color="8000ff")
     log("Set Powerplay LED to breathing purple")
+
+    # Apply OpenRGB devices on startup
+    log("Applying OpenRGB device settings")
+    apply_openrgb_devices(config)
 
     current_profile = "default"
     last_check = 0

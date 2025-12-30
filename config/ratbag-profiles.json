@@ -1,14 +1,28 @@
 {
-  "device": "hidraw6",
+  "device": "hidraw7",
+  "openrgb_devices": {
+    "ASRock B650 PG Lightning": {
+      "mode": "static",
+      "color": "8000ff",
+      "brightness": 100,
+      "speed": 50
+    }
+  },
   "default": {
     "hardware_profile": 0,
     "dpi_ladder": [400, 800, 1600, 3200, 6400],
     "active_resolution": 4,
     "report_rate": 1000,
-    "led_mode": "breathing",
-    "led_color": [128, 0, 255],
-    "led_brightness": 255,
-    "sphere_light_color": "8000ff",
+    "led": {
+      "mode": "breathing",
+      "color": [128, 0, 255],
+      "brightness": 255
+    },
+    "sphere_light": {
+      "mode": "static",
+      "color": "8000ff",
+      "brightness": 100
+    },
     "buttons": {
       "0": {"type": "button", "button": 1},
       "1": {"type": "button", "button": 2},
