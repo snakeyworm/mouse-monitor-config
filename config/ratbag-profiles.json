@@ -1,18 +1,6 @@
 {
   "device": "hidraw7",
   "openrgb_devices": {
-    "G502 LIGHTSPEED": {
-      "mode": "static",
-      "color": "8000ff",
-      "brightness": 100,
-      "speed": 50
-    },
-    "Candy companion": {
-      "mode": "static",
-      "color": "8000ff",
-      "brightness": 100,
-      "speed": 50
-    },
     "ASRock B650 PG Lightning": {
       "mode": "static",
       "color": "8000ff",
@@ -26,9 +14,9 @@
     "active_resolution": 4,
     "report_rate": 1000,
     "led": {
-      "mode": "static",
+      "mode": "breathing",
       "color": [128, 0, 255],
-      "brightness": 255
+      "brightness": 100
     },
     "sphere_light": {
       "mode": "static",
