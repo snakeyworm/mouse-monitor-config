@@ -1,0 +1,87 @@
+{
+  "device": "hidraw6",
+  "default": {
+    "hardware_profile": 0,
+    "dpi_ladder": [400, 800, 1600, 3200, 6400],
+    "active_resolution": 4,
+    "report_rate": 1000,
+    "led_mode": "breathing",
+    "led_color": [255, 0, 0],
+    "led_brightness": 255,
+    "sphere_light_color": "ff0000",
+    "buttons": {
+      "0": {"type": "button", "button": 1},
+      "1": {"type": "button", "button": 2},
+      "2": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_W", "action": "click"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+      "3": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_X", "action": "click"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+      "4": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_C", "action": "click"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+      "5": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_V", "action": "click"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+      "6": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_T", "action": "click"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+      "7": {"type": "macro", "keys": [{"key": "KEY_LEFTMETA", "action": "press"}, {"key": "KEY_Q", "action": "click"}, {"key": "KEY_LEFTMETA", "action": "release"}]},
+      "8": {"type": "button", "button": 7},
+      "9": {"type": "button", "button": 8},
+      "10": {"type": "macro", "keys": [{"key": "KEY_A", "action": "click"}]}
+    }
+  },
+  "profiles": {
+    "brave": {
+      "hardware_profile": 1,
+      "sphere_light_color": "0080ff",
+      "buttons": {
+        "0": {"type": "button", "button": 1},
+        "1": {"type": "button", "button": 2},
+        "2": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_W", "action": "click"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+        "3": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_X", "action": "click"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+        "4": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_C", "action": "click"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+        "5": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_V", "action": "click"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+        "6": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_T", "action": "click"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+        "7": {"type": "macro", "keys": [{"key": "KEY_LEFTMETA", "action": "press"}, {"key": "KEY_Q", "action": "click"}, {"key": "KEY_LEFTMETA", "action": "release"}]},
+        "8": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_D", "action": "click"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+        "9": {"type": "macro", "keys": [{"key": "KEY_LEFTALT", "action": "press"}, {"key": "KEY_RIGHT", "action": "click"}, {"key": "KEY_LEFTALT", "action": "release"}]},
+        "10": {"type": "macro", "keys": [{"key": "KEY_LEFTALT", "action": "press"}, {"key": "KEY_LEFT", "action": "click"}, {"key": "KEY_LEFTALT", "action": "release"}]}
+      }
+    },
+    "code": {
+      "hardware_profile": 0
+    },
+    "overwatch": {
+      "hardware_profile": 2,
+      "sphere_light_color": "ff8000",
+      "buttons": {
+        "0": {"type": "button", "button": 1},
+        "1": {"type": "button", "button": 2},
+        "2": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_W", "action": "click"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+        "3": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "click"}]},
+        "4": {"type": "macro", "keys": [{"key": "KEY_LEFTSHIFT", "action": "click"}]},
+        "5": {"type": "macro", "keys": [{"key": "KEY_Q", "action": "click"}]},
+        "6": {"type": "macro", "keys": [{"key": "KEY_TAB", "action": "click"}]},
+        "7": {"type": "macro", "keys": [{"key": "KEY_E", "action": "click"}]},
+        "8": {"type": "macro", "keys": [{"key": "KEY_M", "action": "click"}]},
+        "9": {"type": "macro", "keys": [{"key": "KEY_ESC", "action": "click"}]},
+        "10": {"type": "macro", "keys": [{"key": "KEY_R", "action": "click"}]}
+      }
+    },
+    "kitty": {
+      "hardware_profile": 3,
+      "sphere_light_color": "00ff00",
+      "buttons": {
+        "0": {"type": "button", "button": 1},
+        "1": {"type": "button", "button": 2},
+        "2": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_LEFTSHIFT", "action": "press"}, {"key": "KEY_W", "action": "click"}, {"key": "KEY_LEFTSHIFT", "action": "release"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+        "3": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_LEFTSHIFT", "action": "press"}, {"key": "KEY_X", "action": "click"}, {"key": "KEY_LEFTSHIFT", "action": "release"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+        "4": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_LEFTSHIFT", "action": "press"}, {"key": "KEY_C", "action": "click"}, {"key": "KEY_LEFTSHIFT", "action": "release"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+        "5": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_LEFTSHIFT", "action": "press"}, {"key": "KEY_V", "action": "click"}, {"key": "KEY_LEFTSHIFT", "action": "release"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+        "6": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_LEFTSHIFT", "action": "press"}, {"key": "KEY_T", "action": "click"}, {"key": "KEY_LEFTSHIFT", "action": "release"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+        "7": {"type": "macro", "keys": [{"key": "KEY_LEFTMETA", "action": "press"}, {"key": "KEY_Q", "action": "click"}, {"key": "KEY_LEFTMETA", "action": "release"}]},
+        "8": {"type": "macro", "keys": [{"key": "KEY_Y", "action": "click"}]},
+        "9": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_LEFTSHIFT", "action": "press"}, {"key": "KEY_RIGHT", "action": "click"}, {"key": "KEY_LEFTSHIFT", "action": "release"}, {"key": "KEY_LEFTCTRL", "action": "release"}]},
+        "10": {"type": "macro", "keys": [{"key": "KEY_LEFTCTRL", "action": "press"}, {"key": "KEY_LEFTSHIFT", "action": "press"}, {"key": "KEY_LEFT", "action": "click"}, {"key": "KEY_LEFTSHIFT", "action": "release"}, {"key": "KEY_LEFTCTRL", "action": "release"}]}
+      }
+    },
+    "gimp": {
+      "hardware_profile": 4,
+      "active_resolution": 2,
+      "sphere_light_color": "8000ff"
+    }
+  }
+}

@@ -1,0 +1,12 @@
+[Unit]
+Description=Ratbag Profile Switcher
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/ratbag-profile-switcher
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

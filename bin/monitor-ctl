@@ -1,0 +1,84 @@
+#!/bin/bash
+
+case "$1" in
+    brightness)
+        if [ -z "$2" ]; then
+            ddcutil getvcp 10 | grep -oP 'current value =\s+\K\d+'
+        else
+            ddcutil setvcp 10 "$2"
+        fi
+        ;;
+    contrast)
+        if [ -z "$2" ]; then
+            ddcutil getvcp 12 | grep -oP 'current value =\s+\K\d+'
+        else
+            ddcutil setvcp 12 "$2"
+        fi
+        ;;
+    input)
+        case "$2" in
+            hdmi1) ddcutil setvcp 60 0x11 ;;
+            hdmi2) ddcutil setvcp 60 0x12 ;;
+            dp1) ddcutil setvcp 60 0x0f ;;
+            dp2) ddcutil setvcp 60 0x10 ;;
+            *) ddcutil getvcp 60 ;;
+        esac
+        ;;
+    preset)
+        case "$2" in
+            6500k) ddcutil setvcp 14 0x05 ;;
+            9300k) ddcutil setvcp 14 0x06 ;;
+            user) ddcutil setvcp 14 0x0b ;;
+            *) ddcutil getvcp 14 ;;
+        esac
+        ;;
+    red)
+        if [ -z "$2" ]; then
+            ddcutil getvcp 16 | grep -oP 'current value =\s+\K\d+'
+        else
+            ddcutil setvcp 16 "$2"
+        fi
+        ;;
+    green)
+        if [ -z "$2" ]; then
+            ddcutil getvcp 18 | grep -oP 'current value =\s+\K\d+'
+        else
+            ddcutil setvcp 18 "$2"
+        fi
+        ;;
+    blue)
+        if [ -z "$2" ]; then
+            ddcutil getvcp 1A | grep -oP 'current value =\s+\K\d+'
+        else
+            ddcutil setvcp 1A "$2"
+        fi
+        ;;
+    rgb)
+        if [ -z "$2" ]; then
+            R=$(ddcutil getvcp 16 | grep -oP 'current value =\s+\K\d+')
+            G=$(ddcutil getvcp 18 | grep -oP 'current value =\s+\K\d+')
+            B=$(ddcutil getvcp 1A | grep -oP 'current value =\s+\K\d+')
+            echo "$R $G $B"
+        else
+            R=$(echo "$2" | cut -d' ' -f1)
+            G=$(echo "$2" | cut -d' ' -f2)
+            B=$(echo "$2" | cut -d' ' -f3)
+            ddcutil setvcp 16 "$R"
+            ddcutil setvcp 18 "$G"
+            ddcutil setvcp 1A "$B"
+        fi
+        ;;
+    *)
+        echo "Usage: monitor-ctl <command> [value]"
+        echo "Commands:"
+        echo "  brightness [0-100]    - Get/set brightness"
+        echo "  contrast [0-100]      - Get/set contrast"
+        echo "  input [hdmi1|hdmi2|dp1|dp2] - Get/set input source"
+        echo "  preset [6500k|9300k|user]    - Get/set color preset"
+        echo "  red [0-100]           - Get/set red channel"
+        echo "  green [0-100]         - Get/set green channel"
+        echo "  blue [0-100]          - Get/set blue channel"
+        echo "  rgb [R G B]           - Get/set all RGB channels"
+        exit 1
+        ;;
+esac

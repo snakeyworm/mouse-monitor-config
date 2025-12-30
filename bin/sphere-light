@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+"""LG 27GN950 Sphere Lighting Controller"""
+import hid
+import sys
+
+def set_color(r, g, b, brightness=100):
+    """Set sphere lighting to specific RGB color with brightness"""
+    try:
+        d = hid.Device(vid=0x043e, pid=0x9a8a)
+        # Command format: [0x57, 0xbb, 0x00, mode, brightness, R, G, B, padding...]
+        # mode: 0x00=off, 0x01=static color, 0x02=breathing, 0x03=cycle
+        cmd = bytes([0x57, 0xbb, 0x00, 0x01, brightness, r, g, b] + [0x00]*56)
+        d.write(cmd)
+        d.close()
+        return True
+    except Exception as e:
+        print(f"Error: {e}")
+        return False
+
+def turn_off():
+    """Turn off sphere lighting"""
+    try:
+        d = hid.Device(vid=0x043e, pid=0x9a8a)
+        cmd = bytes([0x57, 0xbb, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] + [0x00]*56)
+        d.write(cmd)
+        d.close()
+        return True
+    except Exception as e:
+        print(f"Error: {e}")
+        return False
+
+def breathing(r, g, b, brightness=100):
+    """Set breathing mode with specific color"""
+    try:
+        d = hid.Device(vid=0x043e, pid=0x9a8a)
+        cmd = bytes([0x57, 0xbb, 0x00, 0x02, brightness, r, g, b] + [0x00]*56)
+        d.write(cmd)
+        d.close()
+        return True
+    except Exception as e:
+        print(f"Error: {e}")
+        return False
+
+def cycle(brightness=100):
+    """Set RGB cycle mode"""
+    try:
+        d = hid.Device(vid=0x043e, pid=0x9a8a)
+        cmd = bytes([0x57, 0xbb, 0x00, 0x03, brightness, 0x00, 0x00, 0x00] + [0x00]*56)
+        d.write(cmd)
+        d.close()
+        return True
+    except Exception as e:
+        print(f"Error: {e}")
+        return False
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("LG 27GN950 Sphere Lighting Controller")
+        print("")
+        print("Usage:")
+        print("  sphere-light on <R> <G> <B> [brightness]    - Set static color (0-255 each)")
+        print("  sphere-light off                             - Turn off")
+        print("  sphere-light breathing <R> <G> <B> [bright]  - Breathing effect")
+        print("  sphere-light cycle [brightness]              - Rainbow cycle")
+        print("")
+        print("Examples:")
+        print("  sphere-light on 255 0 0        # Red")
+        print("  sphere-light on 0 255 255 50   # Cyan at 50% brightness")
+        print("  sphere-light breathing 255 0 255   # Magenta breathing")
+        print("  sphere-light cycle 80          # Rainbow at 80% brightness")
+        print("  sphere-light off               # Turn off")
+        sys.exit(1)
+
+    cmd = sys.argv[1].lower()
+
+    if cmd == "off":
+        if turn_off():
+            print("Sphere lighting turned off")
+        else:
+            sys.exit(1)
+
+    elif cmd == "on":
+        if len(sys.argv) < 5:
+            print("Error: Specify R G B values (0-255)")
+            sys.exit(1)
+        r = int(sys.argv[2])
+        g = int(sys.argv[3])
+        b = int(sys.argv[4])
+        brightness = int(sys.argv[5]) if len(sys.argv) > 5 else 100
+
+        if set_color(r, g, b, brightness):
+            print(f"Set to RGB({r}, {g}, {b}) at {brightness}% brightness")
+        else:
+            sys.exit(1)
+
+    elif cmd == "breathing":
+        if len(sys.argv) < 5:
+            print("Error: Specify R G B values (0-255)")
+            sys.exit(1)
+        r = int(sys.argv[2])
+        g = int(sys.argv[3])
+        b = int(sys.argv[4])
+        brightness = int(sys.argv[5]) if len(sys.argv) > 5 else 100
+
+        if breathing(r, g, b, brightness):
+            print(f"Breathing mode: RGB({r}, {g}, {b}) at {brightness}% brightness")
+        else:
+            sys.exit(1)
+
+    elif cmd == "cycle":
+        brightness = int(sys.argv[2]) if len(sys.argv) > 2 else 100
+        if cycle(brightness):
+            print(f"Rainbow cycle at {brightness}% brightness")
+        else:
+            sys.exit(1)
+
+    else:
+        print(f"Unknown command: {cmd}")
+        sys.exit(1)

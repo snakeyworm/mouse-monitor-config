@@ -1,0 +1,212 @@
+#!/usr/bin/env python3
+import sys
+import struct
+import time
+
+def hidpp_checksum(data):
+    """Calculate HID++ checksum."""
+    return sum(data) & 0xFF
+
+def send_hidpp_command(device_path, device_index, feature_index, function_id, params):
+    """Send HID++ 2.0 command and read response."""
+    report_id = 0x11  # Long report
+
+    # Build command packet
+    packet = bytearray([report_id, device_index, feature_index, function_id])
+    packet.extend(params)
+
+    # Pad to 20 bytes (report_id + 19 data bytes)
+    while len(packet) < 20:
+        packet.append(0x00)
+
+    try:
+        with open(device_path, 'r+b', buffering=0) as f:
+            # Send command
+            f.write(bytes(packet))
+            f.flush()
+
+            # Read response
+            time.sleep(0.05)
+            response = f.read(20)
+
+            if len(response) < 7:
+                return None
+
+            # Check for error response (report_id, device_idx, feature=0x8F)
+            if response[2] == 0x8F:
+                error_code = response[6]
+                return None
+
+            return response
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return None
+
+def get_feature_index(device_path, device_index, feature_id):
+    """Get feature index for a given feature ID."""
+    ROOT_FEATURE = 0x00
+    GET_FEATURE_FUNC = 0x00
+
+    # Feature ID as 2 bytes (big endian)
+    params = list(struct.pack('>H', feature_id)) + [0x00] * 14
+
+    response = send_hidpp_command(device_path, device_index, ROOT_FEATURE, GET_FEATURE_FUNC, params)
+
+    if response and len(response) >= 5:
+        return response[4]  # Feature index
+    return None
+
+def set_dpi(device_path, device_index, sensor_index, dpi_value):
+    """Set DPI using HID++ 2.0 Adjustable DPI feature (0x2201)."""
+    ADJUSTABLE_DPI_FEATURE = 0x2201
+    SET_SENSOR_DPI_FUNC = 0x30
+
+    # Get feature index for Adjustable DPI
+    feature_idx = get_feature_index(device_path, device_index, ADJUSTABLE_DPI_FEATURE)
+
+    if feature_idx is None:
+        print("Failed to get Adjustable DPI feature index", file=sys.stderr)
+        return False
+
+    print(f"Adjustable DPI feature index: 0x{feature_idx:02x}")
+
+    # Set DPI: sensor_index (1 byte) + dpi (2 bytes, big endian) + padding
+    params = [sensor_index] + list(struct.pack('>H', dpi_value)) + [0x00] * 13
+
+    response = send_hidpp_command(device_path, device_index, feature_idx, SET_SENSOR_DPI_FUNC, params)
+
+    if response:
+        print(f"Successfully set DPI to {dpi_value}")
+        return True
+    else:
+        print(f"Failed to set DPI", file=sys.stderr)
+        return False
+
+def get_dpi(device_path, device_index, sensor_index):
+    """Get current DPI using HID++ 2.0."""
+    ADJUSTABLE_DPI_FEATURE = 0x2201
+    GET_SENSOR_DPI_FUNC = 0x20
+
+    feature_idx = get_feature_index(device_path, device_index, ADJUSTABLE_DPI_FEATURE)
+
+    if feature_idx is None:
+        print("Failed to get Adjustable DPI feature index", file=sys.stderr)
+        return None
+
+    params = [sensor_index] + [0x00] * 15
+
+    response = send_hidpp_command(device_path, device_index, feature_idx, GET_SENSOR_DPI_FUNC, params)
+
+    if response and len(response) >= 7:
+        dpi = struct.unpack('>H', response[5:7])[0]
+        return dpi
+    return None
+
+def get_sensor_dpi_list(device_path, device_index, sensor_index):
+    """Get DPI list for sensor using function 0x10."""
+    ADJUSTABLE_DPI_FEATURE = 0x2201
+    GET_SENSOR_DPI_LIST_FUNC = 0x10
+
+    feature_idx = get_feature_index(device_path, device_index, ADJUSTABLE_DPI_FEATURE)
+
+    if feature_idx is None:
+        return None
+
+    params = [sensor_index] + [0x00] * 15
+
+    response = send_hidpp_command(device_path, device_index, feature_idx, GET_SENSOR_DPI_LIST_FUNC, params)
+
+    if response:
+        return response
+    return None
+
+def set_led_rgb(device_path, device_index, mode, red, green, blue):
+    """Set RGB LED using HID++ 2.0 RGB Effects feature (0x8070)."""
+    RGB_EFFECTS_FEATURE = 0x8070
+    SET_RGB_LED_FUNC = 0x30
+
+    feature_idx = get_feature_index(device_path, device_index, RGB_EFFECTS_FEATURE)
+
+    if feature_idx is None:
+        print("RGB Effects feature not found", file=sys.stderr)
+        return False
+
+    mode_map = {"off": 0, "on": 1, "breathing": 3, "cycle": 2}
+    mode_value = mode_map.get(mode.lower(), 1)
+
+    params = [0, mode_value, red, green, blue, 0, 0, 0] + [0x00] * 8
+
+    response = send_hidpp_command(device_path, device_index, feature_idx, SET_RGB_LED_FUNC, params)
+
+    if response:
+        print(f"Set LED to mode={mode}, RGB=({red},{green},{blue})")
+        return True
+    else:
+        print("Failed to set LED", file=sys.stderr)
+        return False
+
+if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        print("Usage: hidpp-dpi <device> <command> [args]")
+        print("Commands:")
+        print("  get <sensor_index>           - Get current DPI")
+        print("  set <sensor_index> <dpi>     - Set DPI value")
+        print("  list <sensor_index>          - Get DPI list/capabilities")
+        print("  led <mode> <r> <g> <b>       - Set LED (mode: off/on/breathing/cycle)")
+        print("Example: hidpp-dpi /dev/hidraw7 set 0 6400")
+        print("Example: hidpp-dpi /dev/hidraw7 led breathing 0 255 255")
+        sys.exit(1)
+
+    device_path = sys.argv[1]
+    command = sys.argv[2]
+
+    # Device index (0x01 for wireless via PowerPlay/Unifying)
+    device_index = 0x01
+
+    if command == "get":
+        if len(sys.argv) < 4:
+            print("Usage: hidpp-dpi <device> get <sensor_index>")
+            sys.exit(1)
+        sensor_index = int(sys.argv[3])
+        dpi = get_dpi(device_path, device_index, sensor_index)
+        if dpi:
+            print(f"Current DPI: {dpi}")
+        else:
+            print("Failed to get DPI")
+            sys.exit(1)
+
+    elif command == "set":
+        if len(sys.argv) < 5:
+            print("Usage: hidpp-dpi <device> set <sensor_index> <dpi>")
+            sys.exit(1)
+        sensor_index = int(sys.argv[3])
+        dpi_value = int(sys.argv[4])
+        if not set_dpi(device_path, device_index, sensor_index, dpi_value):
+            sys.exit(1)
+
+    elif command == "list":
+        if len(sys.argv) < 4:
+            print("Usage: hidpp-dpi <device> list <sensor_index>")
+            sys.exit(1)
+        sensor_index = int(sys.argv[3])
+        response = get_sensor_dpi_list(device_path, device_index, sensor_index)
+        if response:
+            print(f"Response: {' '.join(f'{b:02x}' for b in response)}")
+        else:
+            print("Failed to get DPI list")
+            sys.exit(1)
+
+    elif command == "led":
+        if len(sys.argv) < 7:
+            print("Usage: hidpp-dpi <device> led <mode> <r> <g> <b>")
+            sys.exit(1)
+        mode = sys.argv[3]
+        r = int(sys.argv[4])
+        g = int(sys.argv[5])
+        b = int(sys.argv[6])
+        if not set_led_rgb(device_path, device_index, mode, r, g, b):
+            sys.exit(1)
+
+    else:
+        print(f"Unknown command: {command}")
+        sys.exit(1)

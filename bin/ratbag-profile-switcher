@@ -1,0 +1,647 @@
+#!/usr/bin/env python3
+import json
+import subprocess
+import time
+import sys
+from pathlib import Path
+
+# Add sphere lighting library path
+sys.path.insert(0, '/tmp/lg-controller')
+import lib27gn950 as lg
+import hid
+
+CONFIG_FILE = Path.home() / ".config" / "ratbag-profiles.json"
+LOG_FILE = Path.home() / ".local/share" / "ratbag-profile-switcher.log"
+STATE_FILE = Path.home() / ".cache" / "ratbag-profile-switcher-state"
+
+# Global state for sphere lighting to prevent flickering
+_last_sphere_color = None
+
+def find_ratbag_mouse_device():
+    """Auto-detect G502 by model name with profile count fallback"""
+    try:
+        result = subprocess.run(['ratbagctl', 'list'], capture_output=True, text=True, check=True)
+
+        # Strategy 1: Direct match on G502 (cleanest, most explicit)
+        for line in result.stdout.split('\n'):
+            if 'G502' in line:
+                device_name = line.split(':')[0].strip()
+                log(f"Found G502 by model name: {device_name}")
+                return device_name
+
+        # Strategy 2: Fallback to device with most profiles (handles edge cases)
+        best_device = None
+        max_profiles = 0
+
+        for line in result.stdout.split('\n'):
+            line = line.strip()
+            if line and 'Logitech' in line:
+                device_name = line.split(':')[0].strip()
+                info_result = subprocess.run(['ratbagctl', device_name, 'info'],
+                                           capture_output=True, text=True)
+                if info_result.returncode == 0:
+                    for info_line in info_result.stdout.split('\n'):
+                        if 'Number of Profiles:' in info_line:
+                            num_profiles = int(info_line.split(':')[1].strip())
+                            if num_profiles > max_profiles:
+                                max_profiles = num_profiles
+                                best_device = device_name
+
+        if best_device:
+            log(f"Found Logitech mouse by profile count: {best_device} ({max_profiles} profiles)")
+        return best_device
+    except:
+        pass
+    return None
+
+def find_receiver_hidraw():
+    """Auto-detect HIDRAW device for Logitech receiver"""
+    import glob
+    for hidraw_path in glob.glob('/dev/hidraw*'):
+        try:
+            uevent_path = f'/sys/class/hidraw/{hidraw_path.split("/")[-1]}/device/uevent'
+            with open(uevent_path, 'r') as f:
+                if 'DRIVER=logitech-djreceiver' in f.read():
+                    return hidraw_path
+        except (OSError, IOError):
+            continue
+    return None
+
+def find_hidraw_for_model(model):
+    """Find HIDRAW device name for a given model by checking DBus Device Name"""
+    import glob
+    for hidraw_path in sorted(glob.glob('/dev/hidraw*')):
+        hidraw = hidraw_path.split('/')[-1]
+        try:
+            result = subprocess.run([
+                "busctl", "get-property", "--system",
+                "org.freedesktop.ratbag1",
+                f"/org/freedesktop/ratbag1/device/{hidraw}",
+                "org.freedesktop.ratbag1.Device",
+                "Name"
+            ], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                name = result.stdout.strip().strip('"')
+                if model in name:
+                    return hidraw
+        except:
+            continue
+    return None
+
+def log(msg):
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    with open(LOG_FILE, "a") as f:
+        f.write(f"[{timestamp}] {msg}\n")
+
+def load_config():
+    if not CONFIG_FILE.exists():
+        log(f"Config not found: {CONFIG_FILE}")
+        return None
+    with open(CONFIG_FILE) as f:
+        return json.load(f)
+
+def configure_dpi_ladder(hidraw_path, profile, dpi_ladder, active_slot):
+    try:
+        hidpp_tool = Path.home() / ".local/bin/hidpp-dpi"
+
+        # Extract device name from path (e.g., /dev/hidraw7 -> hidraw7)
+        device_name = hidraw_path.split('/')[-1] if '/' in hidraw_path else hidraw_path
+        res_path = f"/org/freedesktop/ratbag1/resolution/{device_name}/p{profile}/r{active_slot}"
+        result = subprocess.run([
+            "busctl", "call", "--system",
+            "org.freedesktop.ratbag1",
+            res_path,
+            "org.freedesktop.ratbag1.Resolution",
+            "SetActive",
+        ], capture_output=True, text=True, timeout=5)
+
+        if result.returncode != 0:
+            log(f"Error activating DPI slot: {result.stderr}")
+            return False
+
+        time.sleep(0.1)
+
+        active_dpi = dpi_ladder[active_slot] if active_slot < len(dpi_ladder) else dpi_ladder[-1]
+        result = subprocess.run([
+            str(hidpp_tool), hidraw_path, "set", "0", str(active_dpi)
+        ], capture_output=True, text=True, timeout=2)
+
+        if result.returncode == 0:
+            log(f"Set DPI to {active_dpi} (slot {active_slot})")
+            return True
+        else:
+            log(f"Failed to set DPI: {result.stderr}")
+            return False
+    except Exception as e:
+        log(f"Error configuring DPI: {e}")
+        return False
+
+def set_report_rate(ratbag_device, profile, rate_value):
+    try:
+        profile_path = f"/org/freedesktop/ratbag1/profile/{ratbag_device}/p{profile}"
+
+        result = subprocess.run([
+            "busctl", "set-property", "--system",
+            "org.freedesktop.ratbag1",
+            profile_path,
+            "org.freedesktop.ratbag1.Profile",
+            "ReportRate",
+            "u",
+            str(rate_value)
+        ], capture_output=True, text=True, timeout=5)
+
+        if result.returncode == 0:
+            return True
+        else:
+            log(f"Error setting report rate: {result.stderr}")
+            return False
+    except Exception as e:
+        log(f"Error setting report rate: {e}")
+        return False
+
+def set_led(ratbag_device, profile, led_index, mode, color=None, brightness=None):
+    try:
+        led_path = f"/org/freedesktop/ratbag1/led/{ratbag_device}/p{profile}/l{led_index}"
+
+        mode_map = {"off": 0, "on": 1, "cycle": 2, "breathing": 3}
+        mode_value = mode_map.get(mode.lower(), 1)
+
+        result = subprocess.run([
+            "busctl", "set-property", "--system",
+            "org.freedesktop.ratbag1",
+            led_path,
+            "org.freedesktop.ratbag1.Led",
+            "Mode",
+            "u",
+            str(mode_value)
+        ], capture_output=True, text=True, timeout=5)
+
+        if result.returncode != 0:
+            log(f"Error setting LED mode: {result.stderr}")
+            return False
+
+        if brightness is not None:
+            subprocess.run([
+                "busctl", "set-property", "--system",
+                "org.freedesktop.ratbag1",
+                led_path,
+                "org.freedesktop.ratbag1.Led",
+                "Brightness",
+                "u",
+                str(brightness)
+            ], capture_output=True, text=True, timeout=5)
+
+        return True
+    except Exception as e:
+        log(f"Error setting LED: {e}")
+        return False
+
+def set_sphere_lighting(color_hex):
+    """Set LG monitor sphere lighting color. color_hex is 6-char hex string like '00ff00'"""
+    global _last_sphere_color
+
+    # Skip if color hasn't changed (prevents flickering from repeated profile applications)
+    if _last_sphere_color == color_hex:
+        return True
+
+    try:
+        monitors = lg.find_monitors()
+        if not monitors:
+            log("No LG monitors found for sphere lighting")
+            return False
+
+        with hid.Device(path=monitors[0]['path']) as dev:
+            # Set color slot 1 to the specified color
+            cmd = lg.get_set_color_command(1, color_hex)
+            lg.send_command(cmd, dev)
+
+            # Activate color slot 1
+            lg.send_command(lg.control_commands['color1'], dev)
+
+        _last_sphere_color = color_hex
+        log(f"Set sphere lighting to {color_hex}")
+        return True
+    except Exception as e:
+        log(f"Error setting sphere lighting: {e}")
+        return False
+
+def switch_hardware_profile(ratbag_device, profile_num):
+    try:
+        profile_path = f"/org/freedesktop/ratbag1/profile/{ratbag_device}/p{profile_num}"
+
+        result = subprocess.run([
+            "busctl", "call", "--system",
+            "org.freedesktop.ratbag1",
+            profile_path,
+            "org.freedesktop.ratbag1.Profile",
+            "SetActive"
+        ], capture_output=True, text=True, timeout=5)
+
+        if result.returncode == 0:
+            log(f"Switched to hardware profile {profile_num}")
+            return True
+        else:
+            log(f"Error switching profile: {result.stderr}")
+            return False
+    except Exception as e:
+        log(f"Error switching profile: {e}")
+        return False
+
+def set_powerplay_led(mode="on", color="ff0000"):
+    try:
+        powerplay_device = "hidraw2"
+
+        if not check_device_available(powerplay_device):
+            return True
+
+        result = subprocess.run([
+            "ratbagctl", "list"
+        ], capture_output=True, text=True, timeout=5)
+
+        powerplay_name = None
+        for line in result.stdout.split('\n'):
+            if 'c53a' in line or 'USB Receiver' in line:
+                powerplay_name = line.split(':')[0].strip()
+                break
+
+        if not powerplay_name:
+            return True
+
+        subprocess.run([
+            "ratbagctl", powerplay_name, "led", "0", "set", "mode", mode
+        ], capture_output=True, text=True, timeout=5)
+
+        subprocess.run([
+            "ratbagctl", powerplay_name, "led", "0", "set", "color", color
+        ], capture_output=True, text=True, timeout=5)
+
+        led_path = f"/org/freedesktop/ratbag1/led/{powerplay_device}/p0/l0"
+        subprocess.run([
+            "busctl", "set-property", "--system",
+            "org.freedesktop.ratbag1",
+            led_path,
+            "org.freedesktop.ratbag1.Led",
+            "Brightness",
+            "u",
+            "255"
+        ], capture_output=True, text=True, timeout=5)
+
+        commit_changes(powerplay_device)
+
+        return True
+    except Exception as e:
+        log(f"Error setting Powerplay LED: {e}")
+        return True
+
+def commit_changes(ratbag_device):
+    try:
+        device_path = f"/org/freedesktop/ratbag1/device/{ratbag_device}"
+        result = subprocess.run([
+            "busctl", "call", "--system",
+            "org.freedesktop.ratbag1",
+            device_path,
+            "org.freedesktop.ratbag1.Device",
+            "Commit"
+        ], capture_output=True, text=True, timeout=5)
+
+        if result.returncode == 0:
+            return True
+        else:
+            log(f"Error committing changes: {result.stderr}")
+            return False
+    except Exception as e:
+        log(f"Error committing changes: {e}")
+        return False
+
+def get_active_profile(ratbag_device):
+    try:
+        # Query all profiles for this device
+        device_path = f"/org/freedesktop/ratbag1/device/{ratbag_device}"
+        result = subprocess.run([
+            "busctl", "get-property", "--system",
+            "org.freedesktop.ratbag1",
+            device_path,
+            "org.freedesktop.ratbag1.Device",
+            "Profiles"
+        ], capture_output=True, text=True, timeout=5)
+
+        if result.returncode != 0:
+            return None
+
+        # Parse profile paths from output (format: "ao 5 /path1 /path2 ...")
+        output = result.stdout.strip()
+        paths = output.split()[2:]  # Skip "ao" and count
+
+        # Check each profile for IsActive property
+        for profile_path in paths:
+            profile_path = profile_path.strip('"')  # Remove quotes
+            is_active = subprocess.run([
+                "busctl", "get-property", "--system",
+                "org.freedesktop.ratbag1",
+                profile_path,
+                "org.freedesktop.ratbag1.Profile",
+                "IsActive"
+            ], capture_output=True, text=True, timeout=5)
+
+            if is_active.returncode == 0 and "true" in is_active.stdout.lower():
+                # Extract profile number from path (/org/.../p0 -> 0)
+                profile_num = int(profile_path.split('/p')[-1])
+                return profile_num
+
+    except Exception as e:
+        log(f"Error getting active profile: {e}")
+    return None
+
+def get_ratbag_device_name(device):
+    try:
+        result = subprocess.run([
+            "ratbagctl", "list"
+        ], capture_output=True, text=True, timeout=5)
+
+        for line in result.stdout.split('\n'):
+            if device in line.lower() or 'g502' in line.lower() or 'receiver' in line.lower():
+                return line.split(':')[0].strip()
+        return None
+    except:
+        return None
+
+def configure_buttons(ratbag_device, profile, button_config):
+    try:
+        log(f"Configuring {len(button_config)} buttons on profile {profile}")
+
+        for button_num, button_def in button_config.items():
+            button_type = button_def.get('type')
+
+            if button_type == 'macro':
+                keys_list = button_def.get('keys', [])
+                macro_str = []
+                for key_action in keys_list:
+                    key = key_action['key']
+                    action = key_action['action']
+                    if action == 'press':
+                        macro_str.append(f'+{key}')
+                    elif action == 'release':
+                        macro_str.append(f'-{key}')
+                    elif action == 'click':
+                        macro_str.append(key)
+
+                cmd = ["ratbagctl", "--nocommit", ratbag_device, "profile", str(profile), "button", str(button_num),
+                       "action", "set", "macro"] + macro_str
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                if result.returncode != 0:
+                    log(f"Failed to set button {button_num} macro: {result.stderr}")
+                else:
+                    log(f"Set button {button_num} to macro")
+
+            elif button_type == 'button':
+                target_button = button_def.get('button')
+                result = subprocess.run([
+                    "ratbagctl", "--nocommit", ratbag_device, "profile", str(profile), "button", str(button_num),
+                    "action", "set", "button", str(target_button)
+                ], capture_output=True, text=True, timeout=5)
+                if result.returncode != 0:
+                    log(f"Failed to set button {button_num}: {result.stderr}")
+                else:
+                    log(f"Set button {button_num} to button {target_button}")
+
+        return True
+    except Exception as e:
+        log(f"Error configuring buttons: {e}")
+        return False
+
+def apply_profile(settings, db_device, hidraw_device, ratbag_name, default_ladder, default_led_color, default_hardware_profile, default_buttons, ensure_profile_0=False):
+    # Always use profile 0 - OVERWRITE mode, don't switch profiles
+    hardware_profile = 0
+    dpi_ladder = settings.get('dpi_ladder', default_ladder)
+    active_resolution = settings.get('active_resolution', 4)
+    report_rate = settings.get('report_rate')
+    led_mode = settings.get('led_mode', 'breathing')
+    led_brightness = settings.get('led_brightness', 255)
+    led_color = settings.get('led_color', default_led_color)
+    buttons = settings.get('buttons', default_buttons)
+
+    # On startup or when explicitly requested, switch to profile 0
+    if ensure_profile_0:
+        success = switch_hardware_profile(db_device, 0)
+        log("Switched to profile 0")
+    else:
+        success = True
+
+    if report_rate is not None:
+        success = set_report_rate(db_device, hardware_profile, report_rate) and success
+
+    if success:
+        success = commit_changes(db_device) and success
+        time.sleep(0.1)  # Brief pause after commit
+
+    success = configure_dpi_ladder(hidraw_device, hardware_profile, dpi_ladder, active_resolution) and success
+
+    device_path = hidraw_device
+    hidpp_tool = Path.home() / ".local/bin/hidpp-dpi"
+    result = subprocess.run([
+        str(hidpp_tool), device_path, "led", led_mode,
+        str(led_color[0]), str(led_color[1]), str(led_color[2])
+    ], capture_output=True, text=True, timeout=1)
+
+    if result.returncode == 0:
+        log(f"Set mouse LED to {led_mode} mode, RGB({led_color[0]},{led_color[1]},{led_color[2]})")
+
+    # Skip PowerPlay LED update during profile switches for speed
+    # set_powerplay_led(mode="breathing", color="ff0000")
+
+    # Set sphere lighting if configured
+    sphere_color = settings.get('sphere_light_color')
+    if sphere_color:
+        set_sphere_lighting(sphere_color)
+
+    # Configure buttons if specified
+    if buttons:
+        success = configure_buttons(ratbag_name, hardware_profile, buttons) and success
+        success = commit_changes(db_device) and success
+
+    return success
+
+def get_active_window_class():
+    try:
+        result = subprocess.run([
+            "hyprctl", "activewindow", "-j"
+        ], capture_output=True, text=True, timeout=1)
+
+        if result.returncode == 0:
+            import json
+            window_info = json.loads(result.stdout)
+            class_name = window_info.get('class', '').lower()
+            window_title = window_info.get('title', '').lower()
+
+            if 'brave' in class_name or 'chromium' in class_name:
+                return 'brave'
+            elif 'firefox' in class_name:
+                return 'firefox'
+            elif 'code' in class_name or 'vscode' in class_name:
+                return 'code'
+            elif 'kitty' in class_name:
+                return 'kitty'
+            elif 'gimp' in class_name:
+                return 'gimp'
+            elif 'overwatch' in window_title:
+                return 'overwatch'
+
+    except Exception as e:
+        log(f"Error in get_active_window_class: {e}")
+
+    return None
+
+def check_device_available(device):
+    try:
+        result = subprocess.run([
+            "busctl", "tree", "--system", "org.freedesktop.ratbag1"
+        ], capture_output=True, text=True, timeout=5)
+
+        return f"device/{device}" in result.stdout
+    except:
+        return False
+
+def ensure_device_available(device, max_retries=3):
+    for attempt in range(max_retries):
+        if check_device_available(device):
+            return True
+
+        log(f"Device {device} not found, restarting ratbagd (attempt {attempt + 1}/{max_retries})")
+        try:
+            subprocess.run(["pkexec", "systemctl", "restart", "ratbagd.service"],
+                         capture_output=True, timeout=10)
+            time.sleep(3)
+        except:
+            time.sleep(2)
+
+    return check_device_available(device)
+
+def detect_devices():
+    """Detect all required devices and return them as a tuple, or None if failed"""
+    ratbag_name = find_ratbag_mouse_device()
+    if not ratbag_name:
+        return None
+
+    db_device = find_hidraw_for_model("G502")
+    if not db_device:
+        return None
+
+    hidraw_device = f'/dev/{db_device}'  # HIDRAW path for DPI
+    hidraw_receiver = find_receiver_hidraw()  # Receiver HIDRAW for LED
+
+    return ratbag_name, db_device, hidraw_device, hidraw_receiver
+
+def monitor_windows():
+    config = load_config()
+    if not config:
+        log("Failed to load config")
+        return
+
+    # Auto-detect devices
+    devices = detect_devices()
+    if not devices:
+        log("ERROR: Could not detect devices")
+        return
+
+    ratbag_name, db_device, hidraw_device, hidraw_receiver = devices
+
+    log("Started ratbag profile switcher")
+    log(f"Ratbag name: {ratbag_name}")
+    log(f"DB device: {db_device}")
+    log(f"HIDRAW device: {hidraw_device}")
+    log(f"Loaded {len(config.get('profiles', {}))} profiles")
+
+    # Check device availability using DBus device
+    if not ensure_device_available(db_device):
+        log(f"ERROR: Device {db_device} not available after retries")
+        return
+
+    default_config = config.get("default", {})
+    default_ladder = default_config.get('dpi_ladder', [400, 800, 1600, 3200, 6400])
+    default_led_color = default_config.get('led_color', [255, 0, 0])
+    default_hardware_profile = default_config.get('hardware_profile', 0)
+    default_buttons = default_config.get('buttons', {})
+
+    log("Applying default profile on startup")
+    apply_profile(default_config, db_device, hidraw_device, ratbag_name, default_ladder, default_led_color, default_hardware_profile, default_buttons, ensure_profile_0=True)
+
+    set_powerplay_led(mode="breathing", color="ff0000")
+    log("Set Powerplay LED to breathing red")
+
+    current_profile = "default"
+    last_check = 0
+    check_interval = 0.2
+    last_profile_change = 0
+    profile_change_cooldown = 0.5
+    last_re_detect = 0
+    re_detect_interval = 30  # seconds
+
+    while True:
+        try:
+            window_class = None
+            current_time = time.time()
+
+            if current_time - last_check >= check_interval:
+                window_class = get_active_window_class()
+                last_check = current_time
+
+            if window_class:
+                window_class_lower = str(window_class).lower()
+
+                profile = None
+                profile_name = None
+
+                for app_name, settings in config.get("profiles", {}).items():
+                    app_lower = app_name.lower()
+                    if app_lower in window_class_lower or window_class_lower in app_lower:
+                        profile = settings
+                        profile_name = app_name
+                        break
+
+                if not profile:
+                    profile = config.get("default", {})
+                    profile_name = "default"
+
+                if profile_name != current_profile and (current_time - last_profile_change >= profile_change_cooldown):
+                    # Check if device is available before attempting profile switch
+                    if not check_device_available(db_device):
+                        # Try re-detection if enough time has passed
+                        if current_time - last_re_detect >= re_detect_interval:
+                            log("Device not available, attempting re-detection")
+                            new_devices = detect_devices()
+                            if new_devices:
+                                ratbag_name, db_device, hidraw_device, hidraw_receiver = new_devices
+                                log("Re-detection successful, re-applying current profile")
+                                last_re_detect = current_time
+                                # Re-apply current profile to ensure consistency
+                                current_settings = config.get("profiles", {}).get(current_profile, config.get("default", {}))
+                                apply_profile(current_settings, db_device, hidraw_device, ratbag_name, default_ladder, default_led_color, default_hardware_profile, default_buttons)
+                            else:
+                                log("Re-detection failed")
+                                continue  # Skip profile change attempt
+
+                    dpi_ladder = profile.get('dpi_ladder', default_ladder)
+                    active_res = profile.get('active_resolution', 4)
+                    active_dpi = dpi_ladder[active_res] if active_res < len(dpi_ladder) else dpi_ladder[-1]
+                    profile_hw = profile.get('hardware_profile', default_hardware_profile)
+                    log(f"Applying profile settings: {profile_name} (DPI: {active_dpi})")
+                    if apply_profile(profile, db_device, hidraw_device, ratbag_name, default_ladder, default_led_color, default_hardware_profile, default_buttons):
+                        current_profile = profile_name
+                        last_profile_change = current_time
+                        STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+                        with open(STATE_FILE, "w") as f:
+                            f.write(f"{profile_name}\n")
+
+            time.sleep(0.1)
+
+        except KeyboardInterrupt:
+            log("Shutting down")
+            break
+        except Exception as e:
+            log(f"Error: {e}")
+            import traceback
+            log(traceback.format_exc())
+            time.sleep(5)
+
+if __name__ == "__main__":
+    monitor_windows()
