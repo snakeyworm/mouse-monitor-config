@@ -483,6 +483,27 @@ def apply_profile(settings, db_device, hidraw_device, ratbag_name, default_ladde
 
     return success
 
+def set_sphere_light(color_hex, brightness=100):
+    """Set monitor sphere using sphere-light command"""
+    try:
+        # Convert hex color to RGB
+        r = int(color_hex[0:2], 16)
+        g = int(color_hex[2:4], 16)
+        b = int(color_hex[4:6], 16)
+
+        sphere_light_path = str(Path.home() / ".local" / "bin" / "sphere-light")
+        result = subprocess.run([sphere_light_path, 'on', str(r), str(g), str(b), str(brightness)],
+                              capture_output=True, text=True, timeout=5)
+        if result.returncode == 0:
+            log(f"Set monitor sphere to RGB({r}, {g}, {b}) at {brightness}% brightness")
+            return True
+        else:
+            log(f"sphere-light error: {result.stderr}")
+            return False
+    except Exception as e:
+        log(f"Error setting sphere lighting: {e}")
+        return False
+
 def apply_openrgb_devices(config):
     """Apply OpenRGB device settings from config"""
     openrgb_devices = config.get('openrgb_devices', {})
@@ -491,7 +512,12 @@ def apply_openrgb_devices(config):
         color = device_settings.get('color', 'ffffff')
         brightness = device_settings.get('brightness', 100)
         speed = device_settings.get('speed', 50)
-        set_openrgb_device(device_name, mode, color, brightness, speed)
+
+        # Use sphere-light for monitor (device 2), OpenRGB for others
+        if device_name == "2":
+            set_sphere_light(color, brightness)
+        else:
+            set_openrgb_device(device_name, mode, color, brightness, speed)
 
 def get_active_window_class():
     try:
