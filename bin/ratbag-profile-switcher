@@ -219,6 +219,23 @@ def set_openrgb_device(device_name, mode='static', color='ffffff', brightness=10
         log(f"Error setting OpenRGB device {device_name}: {e}")
         return False
 
+def set_mouse_led(ratbag_name, db_device, mode='breathing', color='8000ff', brightness=255):
+    """Set mouse LED using ratbagctl"""
+    try:
+        # Set both LEDs (0=primary, 1=logo)
+        for led_idx in [0, 1]:
+            subprocess.run(['ratbagctl', '--nocommit', ratbag_name, 'led', str(led_idx), 'set', 'mode', mode],
+                          capture_output=True, timeout=3)
+            subprocess.run(['ratbagctl', '--nocommit', ratbag_name, 'led', str(led_idx), 'set', 'color', color],
+                          capture_output=True, timeout=3)
+            subprocess.run(['ratbagctl', '--nocommit', ratbag_name, 'led', str(led_idx), 'set', 'brightness', str(brightness)],
+                          capture_output=True, timeout=3)
+        # Commit all changes
+        return commit_changes(db_device)
+    except Exception as e:
+        log(f"Error setting mouse LED: {e}")
+        return False
+
 def set_sphere_lighting(color_hex, mode='static', brightness=100):
     """Set LG monitor sphere lighting color. color_hex is 6-char hex string like '00ff00'"""
     global _last_sphere_color
@@ -470,18 +487,15 @@ def apply_profile(settings, db_device, hidraw_device, ratbag_name, default_ladde
 
     success = configure_dpi_ladder(hidraw_device, hardware_profile, dpi_ladder, active_resolution) and success
 
-    device_path = hidraw_device
-    hidpp_tool = Path.home() / ".local/bin/hidpp-dpi"
-    result = subprocess.run([
-        str(hidpp_tool), device_path, "led", led_mode,
-        str(led_color[0]), str(led_color[1]), str(led_color[2])
-    ], capture_output=True, text=True, timeout=1)
-
-    if result.returncode == 0:
+    # Mouse LED is controlled by OpenRGB in openrgb_devices config
+    # (ratbagctl LED settings get overridden by OpenRGB)
+    # If profile has custom LED settings, apply them via OpenRGB
+    if led_settings:
+        color_hex = "{:02x}{:02x}{:02x}".format(led_color[0], led_color[1], led_color[2])
+        set_openrgb_device("G502 LIGHTSPEED", led_mode, color_hex, led_brightness)
         log(f"Set mouse LED to {led_mode} mode, RGB({led_color[0]},{led_color[1]},{led_color[2]})")
 
-    # Skip PowerPlay LED update during profile switches for speed
-    # set_powerplay_led(mode="breathing", color="ff0000")
+    # PowerPlay LED is controlled by OpenRGB in openrgb_devices config
 
     # Set sphere lighting if configured (support both old and new formats)
     sphere_settings = settings.get('sphere_light', {})
