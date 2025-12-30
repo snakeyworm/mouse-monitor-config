@@ -1,0 +1,2 @@
+# Disable USB autosuspend for LG 27GN950 Monitor HID (sphere lighting control)
+ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="043e", ATTR{idProduct}=="9a8a", ATTR{power/control}="on"
