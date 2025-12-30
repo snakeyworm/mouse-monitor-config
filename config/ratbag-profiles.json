@@ -1,7 +1,22 @@
 {
   "device": "hidraw7",
   "openrgb_devices": {
-    "ASRock B650 PG Lightning": {
+    "3": {
+      "name": "Candy companion (Powerplay)",
+      "mode": "breathing",
+      "color": "8000ff",
+      "brightness": 100,
+      "speed": 50
+    },
+    "4": {
+      "name": "G502 LIGHTSPEED Mouse",
+      "mode": "breathing",
+      "color": "8000ff",
+      "brightness": 100,
+      "speed": 50
+    },
+    "5": {
+      "name": "ASRock B650 PG Lightning",
       "mode": "static",
       "color": "8000ff",
       "brightness": 100,

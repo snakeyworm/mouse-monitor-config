@@ -196,29 +196,30 @@ def set_led(ratbag_device, profile, led_index, mode, color=None, brightness=None
         log(f"Error setting LED: {e}")
         return False
 
-def set_openrgb_device(device_name, mode='static', color='ffffff', brightness=100, speed=50, retries=2):
-    """Set OpenRGB device lighting with retry logic"""
+def set_openrgb_device(device_id, mode='static', color='ffffff', brightness=100, speed=50, retries=2):
+    """Set OpenRGB device lighting with retry logic. device_id can be index (int/str) or name"""
     for attempt in range(retries):
         try:
-            cmd = ['openrgb', '--device', device_name, '--mode', mode, '--color', color]
+            # Use -d for device index (more reliable than --device name)
+            cmd = ['openrgb', '-d', str(device_id), '-m', mode, '-c', color]
 
             if brightness is not None:
-                cmd.extend(['--brightness', str(brightness)])
+                cmd.extend(['-b', str(brightness)])
 
             if speed is not None:
-                cmd.extend(['--speed', str(speed)])
+                cmd.extend(['-s', str(speed)])
 
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
 
             if result.returncode == 0:
-                log(f"Set OpenRGB device '{device_name}' to {mode} mode, color {color}")
+                log(f"Set OpenRGB device {device_id} to {mode} mode, color {color}")
                 return True
             else:
-                log(f"OpenRGB error for {device_name} (attempt {attempt+1}/{retries}): {result.stderr[:100]}")
+                log(f"OpenRGB error for device {device_id} (attempt {attempt+1}/{retries}): {result.stderr[:100]}")
         except subprocess.TimeoutExpired:
-            log(f"OpenRGB timeout for {device_name} (attempt {attempt+1}/{retries})")
+            log(f"OpenRGB timeout for device {device_id} (attempt {attempt+1}/{retries})")
         except Exception as e:
-            log(f"Error setting OpenRGB device {device_name} (attempt {attempt+1}/{retries}): {e}")
+            log(f"Error setting OpenRGB device {device_id} (attempt {attempt+1}/{retries}): {e}")
 
         if attempt < retries - 1:
             time.sleep(1)  # Wait before retry
@@ -497,22 +498,11 @@ def apply_profile(settings, db_device, hidraw_device, ratbag_name, default_ladde
 
     success = configure_dpi_ladder(hidraw_device, hardware_profile, dpi_ladder, active_resolution) and success
 
-    # Set mouse LED using hidpp-dpi (OpenRGB unreliable for wireless Logitech)
-    # Map mode: static->on, breathing stays breathing, spectrum-cycle->cycle
-    hidpp_mode_map = {'static': 'on', 'spectrum-cycle': 'cycle', 'spectrum cycle': 'cycle'}
-    hidpp_mode = hidpp_mode_map.get(led_mode.lower(), led_mode)
-
-    device_path = hidraw_device
-    hidpp_tool = Path.home() / ".local/bin/hidpp-dpi"
-    try:
-        result = subprocess.run([
-            str(hidpp_tool), device_path, "led", hidpp_mode,
-            str(led_color[0]), str(led_color[1]), str(led_color[2])
-        ], capture_output=True, text=True, timeout=2)
-        if result.returncode == 0:
-            log(f"Set mouse LED to {hidpp_mode} mode, RGB({led_color[0]},{led_color[1]},{led_color[2]})")
-    except Exception as e:
-        log(f"Error setting mouse LED via hidpp: {e}")
+    # Set mouse LED via OpenRGB (using device index 4)
+    if led_settings:
+        color_hex = "{:02x}{:02x}{:02x}".format(led_color[0], led_color[1], led_color[2])
+        set_openrgb_device("4", led_mode, color_hex, led_brightness)
+        log(f"Set mouse LED to {led_mode} mode, RGB({led_color[0]},{led_color[1]},{led_color[2]})")
 
     # Set sphere lighting if configured (support both old and new formats)
     sphere_settings = settings.get('sphere_light', {})
@@ -654,16 +644,7 @@ def monitor_windows():
     log("Applying default profile on startup")
     apply_profile(default_config, db_device, hidraw_device, ratbag_name, default_ladder, default_led_color, default_hardware_profile, default_buttons, ensure_profile_0=True)
 
-    # Set Powerplay LED using ratbagctl (OpenRGB unreliable for wireless Logitech)
-    powerplay_led_settings = default_config.get('led', {})
-    if powerplay_led_settings:
-        powerplay_mode = powerplay_led_settings.get('mode', 'breathing')
-        powerplay_color = powerplay_led_settings.get('color', [128, 0, 255])
-        color_hex = "{:02x}{:02x}{:02x}".format(powerplay_color[0], powerplay_color[1], powerplay_color[2])
-        set_powerplay_led(mode=powerplay_mode, color=color_hex)
-        log(f"Set Powerplay LED to {powerplay_mode} purple")
-
-    # Apply OpenRGB devices on startup (fans/motherboard only)
+    # Apply OpenRGB devices on startup (mouse, powerplay, fans)
     log("Applying OpenRGB device settings")
     apply_openrgb_devices(config)
 
