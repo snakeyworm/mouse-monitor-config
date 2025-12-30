@@ -37,11 +37,7 @@ systemctl --user enable --now ratbag-profile-switcher.service
 
 ## Profile Colors
 
-- Default: Red
-- Brave: Blue
-- Kitty: Green
-- Overwatch: Orange
-- GIMP: Purple
+- Default: Purple (all profiles inherit this unless overridden)
 
 ## Dependencies
 

@@ -8,7 +8,7 @@
     "led_mode": "breathing",
     "led_color": [255, 0, 0],
     "led_brightness": 255,
-    "sphere_light_color": "ff0000",
+    "sphere_light_color": "8000ff",
     "buttons": {
       "0": {"type": "button", "button": 1},
       "1": {"type": "button", "button": 2},
@@ -26,7 +26,6 @@
   "profiles": {
     "brave": {
       "hardware_profile": 1,
-      "sphere_light_color": "0080ff",
       "buttons": {
         "0": {"type": "button", "button": 1},
         "1": {"type": "button", "button": 2},
@@ -46,7 +45,6 @@
     },
     "overwatch": {
       "hardware_profile": 2,
-      "sphere_light_color": "ff8000",
       "buttons": {
         "0": {"type": "button", "button": 1},
         "1": {"type": "button", "button": 2},
@@ -63,7 +61,6 @@
     },
     "kitty": {
       "hardware_profile": 3,
-      "sphere_light_color": "00ff00",
       "buttons": {
         "0": {"type": "button", "button": 1},
         "1": {"type": "button", "button": 2},
@@ -80,8 +77,7 @@
     },
     "gimp": {
       "hardware_profile": 4,
-      "active_resolution": 2,
-      "sphere_light_color": "8000ff"
+      "active_resolution": 2
     }
   }
 }
