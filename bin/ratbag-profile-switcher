@@ -499,7 +499,7 @@ def detect_devices():
     if not ratbag_name:
         return None
 
-    db_device = find_hidraw_for_model("G502")
+    db_device = find_hidraw_for_model("Logitech G502")
     if not db_device:
         return None
 
