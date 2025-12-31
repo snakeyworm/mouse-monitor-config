@@ -11,9 +11,6 @@ CONFIG_FILE = Path.home() / ".config" / "ratbag-profiles.json"
 LOG_FILE = Path.home() / ".local/share" / "ratbag-profile-switcher.log"
 STATE_FILE = Path.home() / ".cache" / "ratbag-profile-switcher-state"
 
-# Global cache for OpenRGB device settings
-_openrgb_cache = None
-
 def find_ratbag_mouse_device():
     """Auto-detect G502 by model name with profile count fallback"""
     try:
@@ -192,36 +189,6 @@ def set_led(ratbag_device, profile, led_index, mode, color=None, brightness=None
     except Exception as e:
         log(f"Error setting LED: {e}")
         return False
-
-def set_openrgb_device(device_id, mode='static', color='ffffff', brightness=100, speed=50, retries=2):
-    """Set OpenRGB device lighting with retry logic. device_id can be index (int/str) or name"""
-    for attempt in range(retries):
-        try:
-            # Use -d for device index (more reliable than --device name)
-            cmd = ['openrgb', '-d', str(device_id), '-m', mode, '-c', color]
-
-            if brightness is not None:
-                cmd.extend(['-b', str(brightness)])
-
-            if speed is not None:
-                cmd.extend(['-s', str(speed)])
-
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
-
-            if result.returncode == 0:
-                log(f"Set OpenRGB device {device_id} to {mode} mode, color {color}")
-                return True
-            else:
-                log(f"OpenRGB error for device {device_id} (attempt {attempt+1}/{retries}): {result.stderr[:100]}")
-        except subprocess.TimeoutExpired:
-            log(f"OpenRGB timeout for device {device_id} (attempt {attempt+1}/{retries})")
-        except Exception as e:
-            log(f"Error setting OpenRGB device {device_id} (attempt {attempt+1}/{retries}): {e}")
-
-        if attempt < retries - 1:
-            time.sleep(1)  # Wait before retry
-
-    return False
 
 def set_mouse_led(ratbag_name, db_device, mode='breathing', color='8000ff', brightness=255):
     """Set mouse LED using ratbagctl"""
@@ -469,60 +436,7 @@ def apply_profile(settings, db_device, hidraw_device, ratbag_name, default_ladde
         success = configure_buttons(ratbag_name, hardware_profile, buttons) and success
         success = commit_changes(db_device) and success
 
-    # Set mouse LED via OpenRGB AFTER ratbag commit (commit resets LED to ratbag's state)
-    # Always set LED - use profile settings if available, otherwise use defaults
-    led_speed = led_settings.get('speed', 50) if led_settings else 50
-    color_hex = "{:02x}{:02x}{:02x}".format(led_color[0], led_color[1], led_color[2])
-    log(f"About to set mouse LED: device=4, mode={led_mode}, color={color_hex}, brightness={led_brightness}, speed={led_speed}")
-    result = set_openrgb_device("4", led_mode, color_hex, led_brightness, led_speed)
-    log(f"Mouse LED command result: {result}")
-
-    # Apply all OpenRGB devices (monitor sphere, powerplay, fans) to ensure consistent state
-    config = load_config()
-    if config:
-        apply_openrgb_devices(config)
-
     return success
-
-def apply_openrgb_devices(config):
-    """Apply OpenRGB device settings from config using single batched command"""
-    global _openrgb_cache
-
-    openrgb_devices = config.get('openrgb_devices', {})
-    if not openrgb_devices:
-        return
-
-    # Build cache key from device settings
-    cache_key = {}
-    for device_name, device_settings in openrgb_devices.items():
-        mode = device_settings.get('mode', 'static').capitalize()
-        color = device_settings.get('color', 'ffffff')
-        brightness = device_settings.get('brightness', 100)
-        speed = device_settings.get('speed', 50)
-        cache_key[device_name] = (mode, color, brightness, speed)
-
-    # Check if settings match cached state
-    if _openrgb_cache == cache_key:
-        log("OpenRGB devices unchanged, skipping update")
-        return
-
-    # Build single OpenRGB command with all devices
-    cmd = ['openrgb']
-    device_info = []
-
-    for device_name, (mode, color, brightness, speed) in cache_key.items():
-        cmd.extend(['-d', str(device_name), '-m', mode, '-c', color, '-b', str(brightness), '-s', str(speed)])
-        device_info.append(f"device {device_name} ({mode}, {color})")
-
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
-        if result.returncode == 0:
-            log(f"Set OpenRGB devices in batch: {', '.join(device_info)}")
-            _openrgb_cache = cache_key  # Update cache on success
-        else:
-            log(f"OpenRGB batch error: {result.stderr[:200]}")
-    except Exception as e:
-        log(f"Error setting OpenRGB devices in batch: {e}")
 
 def get_active_window_class():
     try:

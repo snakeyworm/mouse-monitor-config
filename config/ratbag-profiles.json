@@ -1,28 +1,5 @@
 {
   "device": "hidraw7",
-  "openrgb_devices": {
-    "2": {
-      "name": "LG 27GN950 Monitor Sphere",
-      "mode": "static",
-      "color": "8000ff",
-      "brightness": 100,
-      "speed": 50
-    },
-    "3": {
-      "name": "Candy companion (Powerplay)",
-      "mode": "static",
-      "color": "8000ff",
-      "brightness": 100,
-      "speed": 50
-    },
-    "5": {
-      "name": "ASRock B650 PG Lightning",
-      "mode": "static",
-      "color": "8000ff",
-      "brightness": 100,
-      "speed": 50
-    }
-  },
   "default": {
     "hardware_profile": 0,
     "dpi_ladder": [400, 800, 1600, 3200, 6400],
